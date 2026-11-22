@@ -1,0 +1,22 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.28"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+evm_version = "shanghai"
+bytecode_hash = "ipfs"
+ffi = false
+remappings = ["forge-std/=lib/forge-std/src/"]
+
+[rpc_endpoints]
+bsc = "https://bsc-dataseed.bnbchain.org"
+
+# 验证走 Foundry 1.9 的 Etherscan API v2。密钥用环境变量 ETHERSCAN_API_KEY，见 script/verify.sh。
+
+[fmt]
+line_length = 120
+tab_width = 4
+quote_style = "double"

@@ -1,0 +1,23 @@
+# Foundry
+cache/
+out/
+broadcast/
+
+# 前端
+web/node_modules/
+web/dist/
+web/.env
+web/.env.local
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*secret*
+
+# 系统
+.DS_Store
+*.log

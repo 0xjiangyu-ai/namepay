@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Fraunces", "Noto Serif SC", ui-serif, Georgia, serif;
+  --color-paper: #f3ecdf;
+  --color-paper-2: #e6d8c2;
+  --color-card: #fffaf3;
+  --color-ink: #1c1712;
+  --color-muted: #6e655c;
+  --color-line: #e0d3c0;
+  --color-pine: #0f6b50;
+  --color-pine-2: #e7f5ef;
+  --color-brick: #9a3412;
+  --color-stamp: #b4532a;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: var(--color-paper);
+  background-image:
+    linear-gradient(to right, rgb(28 23 18 / 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(28 23 18 / 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-pine);
+  outline-offset: 2px;
+}
+
+.serif {
+  font-family: var(--font-serif);
+}
+
+.slip {
+  background-color: var(--color-card);
+  background-image: radial-gradient(circle at 12px 0, transparent 8px, var(--color-card) 9px);
+  background-size: 24px 16px;
+  background-repeat: repeat-x;
+  box-shadow: 0 24px 60px rgb(48 32 12 / 0.08);
+}
