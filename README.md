@@ -4,7 +4,7 @@
 
 主网合约已经部署在 BNB Smart Chain（chain id 56）：`0xE762448Cd6a9887e00c380de3dC6DaAE06aB2FeD`。现场结账只调用这份合约上已有的 `tip`（BNB）和 `tipToken`（USDC）。资金在同一笔交易里转给 `ownerOf` 读到的当前持有人。合约不托管。不要再部署一份，也不要在仓库里放私钥。
 
-公开预览（不签名）：<https://0xjiangyu-ai.github.io/namepay/preview/booth>
+公开预览（不签名）：<https://namepay-bangkok.deed.page/preview/booth/>
 
 | 路径 | 谁用 | 会不会上链 |
 | --- | --- | --- |
@@ -49,7 +49,7 @@ npm run dev
 
 ## Public preview
 
-Walkthrough, no wallet: <https://0xjiangyu-ai.github.io/namepay/preview/booth>
+Walkthrough, no wallet: <https://namepay-bangkok.deed.page/preview/booth/>
 
 Live paths on that host are `/booth` and `/checkout/<name>.ai`. Preview paths under `/preview` use the same screens and do not sign or broadcast. The live contract is `0xE762448Cd6a9887e00c380de3dC6DaAE06aB2FeD` on BNB Smart Chain (chain id 56). Checkout pays with the existing `tip` and `tipToken` functions, so BNB or USDC goes to the wallet that currently holds the Agent ID. That wallet is the on-chain holder, not a Binance account. Do not deploy another contract.
 
