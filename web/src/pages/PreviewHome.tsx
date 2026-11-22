@@ -8,6 +8,7 @@ const links = [
   ["/preview/pay/1", "previewPay"],
   ["/preview/to/bao.ai", "previewTip"],
   ["/preview/to/missing.ai", "previewMissing"],
+  ["/preview/checkout/tipoff.ai?amount=0.05&token=bnb&memo=closed", "previewClosed"],
 ] as const
 
 export function PreviewHome() {

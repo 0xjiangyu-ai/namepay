@@ -7,6 +7,7 @@ import { Button, controlClass, Field, InvoiceRow, TxBanner } from "../components
 import { useI18n } from "../i18n.tsx"
 import { formatToken, parseAmount, shortAddress } from "../lib/format.ts"
 import { displayName } from "../lib/handles.ts"
+import { tipsAreClosed } from "../lib/payeeRules.ts"
 import { usePayee } from "../session.tsx"
 
 export function ToName() {
@@ -25,7 +26,7 @@ export function ToName() {
   )
   const self = payee.identity.tokenId && payee.normalized && payee.identity.handle === payee.normalized
   const ready = payee.status === "ready"
-  const tipsClosed = Boolean(profile?.active && !profile.tipsOpen)
+  const tipsClosed = tipsAreClosed(profile)
 
   return (
     <div className="mx-auto grid max-w-5xl gap-6 py-4 lg:grid-cols-[0.9fr_1.1fr]">
@@ -38,6 +39,7 @@ export function ToName() {
         {payee.status === "loading" ? <p className="mt-4 text-sm text-muted">{copy.loading}</p> : null}
         {payee.status === "invalid" ? <p className="mt-4 text-sm">{copy.invalidName}</p> : null}
         {payee.status === "unknown" ? <p className="mt-4 text-sm">{copy.unknownName}</p> : null}
+        {payee.status === "unavailable" || payee.profileUnavailable ? <p className="mt-4 text-sm">{copy.nameUnread}</p> : null}
         {ready ? (
           <article className="mt-5 rounded-3xl bg-ink p-5 text-paper">
             <p className="text-xs uppercase tracking-[0.16em] text-paper/60">{copy.toLabel}</p>
@@ -64,7 +66,12 @@ export function ToName() {
               }}
             >
               <h2 className="serif text-2xl">{copy.tipAmount}</h2>
-              {tipsClosed ? <p className="text-sm text-brick">{copy.tipsClosed}</p> : null}
+              {tipsClosed ? (
+                <div>
+                  <p className="font-medium text-brick">{copy.tipsClosedTitle}</p>
+                  <p className="text-sm text-brick">{copy.tipsClosedBody}</p>
+                </div>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label={copy.amount}>
                   <input className={controlClass} value={amount} onChange={(event) => setAmount(event.target.value)} />
@@ -85,7 +92,7 @@ export function ToName() {
                   {copy.approveExact}
                 </Button>
               ) : (
-                <Button type="submit" disabled={busy || tipsClosed}>
+                <Button type="submit" disabled={busy || tipsClosed || payee.profilePending}>
                   {copy.sendTip}
                 </Button>
               )}
