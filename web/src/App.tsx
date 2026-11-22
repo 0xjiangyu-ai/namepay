@@ -8,11 +8,12 @@ import { How } from "./pages/How.tsx"
 import { Pay } from "./pages/Pay.tsx"
 import { PreviewHome } from "./pages/PreviewHome.tsx"
 import { ToName } from "./pages/ToName.tsx"
+import { appBasename } from "./lib/publicUrl.ts"
 import { PreviewProvider } from "./preview.tsx"
 
 export function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={appBasename()}>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Home />} />
