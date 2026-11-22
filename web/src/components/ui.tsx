@@ -5,6 +5,7 @@ import { EXPLORER } from "../config.ts"
 import { useI18n } from "../i18n.tsx"
 import { formatToken, formatWhen, shortAddress } from "../lib/format.ts"
 import { displayName } from "../lib/handles.ts"
+import { absoluteAppUrl } from "../lib/publicUrl.ts"
 import type { InvoiceModel, TxState } from "../models.ts"
 
 export function Button({
@@ -138,7 +139,7 @@ export function InvoiceRow({
         <Link className="text-sm font-medium text-pine underline" to={href}>
           {copy.payTitle}
         </Link>
-        <CopyButton value={`${window.location.origin}${href}`} label={copy.sharePay} />
+        <CopyButton value={absoluteAppUrl(href)} label={copy.sharePay} />
         {onCancel && tone === "open" ? (
           <button type="button" className="text-sm text-brick" onClick={() => onCancel(invoice.id)}>
             {copy.cancel}

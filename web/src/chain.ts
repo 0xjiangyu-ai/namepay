@@ -37,7 +37,7 @@ if (WALLETCONNECT_PROJECT_ID) {
         name: "Namepay",
         description: "Pay an Agent ID",
         url: origin,
-        icons: [`${origin}/favicon.svg`],
+        icons: [`${origin}${import.meta.env.BASE_URL}favicon.svg`],
       },
     }),
   )

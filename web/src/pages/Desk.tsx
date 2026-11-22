@@ -6,6 +6,7 @@ import { Button, controlClass, CopyButton, Field, InvoiceRow, TxBanner } from ".
 import { useI18n } from "../i18n.tsx"
 import { formatToken, shortAddress } from "../lib/format.ts"
 import { displayName } from "../lib/handles.ts"
+import { absoluteAppUrl } from "../lib/publicUrl.ts"
 import type { PassModel } from "../models.ts"
 import { useDesk } from "../session.tsx"
 
@@ -63,7 +64,7 @@ function Ready({ desk }: { desk: ReturnType<typeof useDesk> }) {
           </p>
           <div className="mt-4">
             <CopyButton
-              value={`${window.location.origin}${desk.basePath}/to/${identity.handle}.ai`}
+              value={absoluteAppUrl(`${desk.basePath}/to/${identity.handle}.ai`)}
               label={copy.shareName}
               className="!text-paper"
             />

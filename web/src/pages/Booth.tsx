@@ -4,6 +4,7 @@ import QRCode from "qrcode"
 import { EXPLORER, NAMEPAY } from "../config.ts"
 import { useI18n } from "../i18n.tsx"
 import { loadBoothDraft, saveBoothDraft } from "../lib/boothSession.ts"
+import { absoluteAppUrl } from "../lib/publicUrl.ts"
 import { checkoutPath, type CheckoutAsset } from "../lib/checkout.ts"
 import { formatToken, formatWhen, shortAddress } from "../lib/format.ts"
 import { displayName } from "../lib/handles.ts"
@@ -36,7 +37,7 @@ export function Booth() {
     if (!payable || !/^\d+(\.\d{1,18})?$/.test(amount) || amount === "0") return ""
     return checkoutPath(basePath, { handle, amount, asset, memo })
   }, [amount, asset, basePath, handle, memo, payable])
-  const url = path && typeof window !== "undefined" ? `${window.location.origin}${path}` : ""
+  const url = path && typeof window !== "undefined" ? absoluteAppUrl(path) : ""
   const incoming = useIncomingTips(handle)
 
   useEffect(() => {

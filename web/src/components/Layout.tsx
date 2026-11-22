@@ -18,7 +18,7 @@ export function Layout() {
     <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 pb-8 sm:px-6">
       <header className="flex flex-wrap items-center gap-x-5 gap-y-3 py-4">
         <NavLink to={home} className="flex items-center gap-2">
-          <img src="/favicon.svg" alt="" className="h-9 w-9" />
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-9 w-9" />
           <span className="serif text-2xl">{copy.brand}</span>
         </NavLink>
         <nav className="flex items-center gap-4 text-sm">
