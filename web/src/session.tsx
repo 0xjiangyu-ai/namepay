@@ -1,8 +1,8 @@
-import { useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
-import { type Address, zeroAddress } from "viem"
-import { useChainId, useConnection, useReadContract, useReadContracts, useWriteContract } from "wagmi"
-import { waitForTransactionReceipt } from "wagmi/actions"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { type Address, parseAbiItem, zeroAddress } from "viem"
+import { useChainId, useConnection, useReadContract, useReadContracts, useWatchContractEvent, useWriteContract } from "wagmi"
+import { getPublicClient, waitForTransactionReceipt } from "wagmi/actions"
 import { agentAbi } from "./abi/agentId.ts"
 import { erc20Abi } from "./abi/erc20.ts"
 import { namepayAbi } from "./abi/namepay.ts"
@@ -11,7 +11,18 @@ import { AGENT_ID, CHAIN_ID, NAMEPAY, USDC } from "./config.ts"
 import { useI18n } from "./i18n.tsx"
 import { explainError } from "./lib/errors.ts"
 import { deadlineFromLocal, parseAmount } from "./lib/format.ts"
+import { loadInbox, saveInbox, withTipHashes } from "./lib/inboxCache.ts"
 import { agentTokenId, normalizeHandle } from "./lib/handles.ts"
+import { isHandleShape, isPreviewFixture, tipsAreClosed } from "./lib/payeeRules.ts"
+import {
+  previewBuyPass,
+  previewCancel,
+  previewInvoice,
+  previewPay,
+  previewProfile,
+  previewTip,
+  previewUsePass,
+} from "./lib/previewLedger.ts"
 import {
   idleTx,
   type IdentityModel,
@@ -24,16 +35,16 @@ import {
   type TipModel,
   type TxState,
 } from "./models.ts"
-import {
-  previewBuyPass,
-  previewCancel,
-  previewInvoice,
-  previewPay,
-  previewProfile,
-  previewTip,
-  previewUsePass,
-  usePreview,
-} from "./preview.tsx"
+import { usePreview } from "./preview.tsx"
+
+function previewTx(
+  outcome: { error?: string; hash?: `0x${string}` },
+  copy: ReturnType<typeof useI18n>["copy"],
+  success: string,
+): TxState {
+  if (outcome.error) return { phase: "error", message: localMessage(outcome.error, copy) }
+  return { phase: "success", message: success, hash: outcome.hash, purpose: "payment" }
+}
 
 function localMessage(code: string, copy: ReturnType<typeof useI18n>["copy"]) {
   if (code === "rejected") return copy.txRejected
@@ -189,7 +200,13 @@ function useDetails<T>(ids: readonly bigint[] | undefined, itemName: "invoice" |
   const items = (details.data ?? [])
     .map((row) => (row.status === "success" ? (row.result as T) : null))
     .filter((row): row is T => row !== null)
-  return { items, loading: details.isLoading }
+  return {
+    items,
+    loading: details.isLoading,
+    error: details.isError,
+    ready: !enabled || list.length === 0 || details.isSuccess,
+    refetch: () => details.refetch(),
+  }
 }
 
 function toProfile(
@@ -240,8 +257,7 @@ export function useDesk() {
       return
     }
     if (preview) {
-      const code = preview.apply(previewProfile(preview.state, input))
-      setTx(code ? { phase: "error", message: localMessage(code, copy) } : { phase: "success", message: copy.txSuccess })
+      setTx(previewTx(preview.apply(previewProfile(preview.state, input)), copy, copy.txSuccess))
       return
     }
     await send(copy.txSuccess, () =>
@@ -274,8 +290,7 @@ export function useDesk() {
       return
     }
     if (preview) {
-      const code = preview.apply(previewInvoice(preview.state, input))
-      setTx(code ? { phase: "error", message: localMessage(code, copy) } : { phase: "success", message: copy.txSuccess })
+      setTx(previewTx(preview.apply(previewInvoice(preview.state, input)), copy, copy.txSuccess))
       return
     }
     await send(copy.txSuccess, () =>
@@ -290,8 +305,7 @@ export function useDesk() {
 
   const onCancel = async (id: bigint) => {
     if (preview) {
-      const code = preview.apply(previewCancel(preview.state, id))
-      setTx(code ? { phase: "error", message: localMessage(code, copy) } : { phase: "success", message: copy.txSuccess })
+      setTx(previewTx(preview.apply(previewCancel(preview.state, id)), copy, copy.txSuccess))
       return
     }
     await send(copy.txSuccess, () =>
@@ -305,8 +319,7 @@ export function useDesk() {
       return
     }
     if (preview) {
-      const code = preview.apply(previewUsePass(preview.state, id, action))
-      setTx(code ? { phase: "error", message: localMessage(code, copy) } : { phase: "success", message: copy.txSuccess })
+      setTx(previewTx(preview.apply(previewUsePass(preview.state, id, action)), copy, copy.txSuccess))
       return
     }
     await send(copy.txSuccess, () =>
@@ -397,7 +410,7 @@ export function usePay(rawId: string | undefined) {
       setTx({ phase: "pending", message: copy.txPending, hash })
       await waitForTransactionReceipt(wagmiConfig, { hash })
       await qc.invalidateQueries()
-      setTx({ phase: "success", message: copy.thenPay, hash })
+      setTx({ phase: "success", message: copy.thenPay, hash, purpose: "approval" })
     } catch (error) {
       setTx({ phase: "error", message: explainError(error, copy) })
     }
@@ -406,8 +419,7 @@ export function usePay(rawId: string | undefined) {
   async function pay() {
     if (!invoice) return
     if (preview) {
-      const code = preview.apply(previewPay(preview.state, invoice.id))
-      setTx(code ? { phase: "error", message: localMessage(code, copy) } : { phase: "success", message: copy.txSuccess })
+      setTx(previewTx(preview.apply(previewPay(preview.state, invoice.id)), copy, copy.txSuccess))
       return
     }
     if (!NAMEPAY) {
@@ -450,43 +462,99 @@ export function usePay(rawId: string | undefined) {
   }
 }
 
-export function usePayee(rawName: string) {
+export type NameStatus = "loading" | "invalid" | "unknown" | "ready" | "unavailable"
+
+/// 先读注册表。已注册的名字用链上持有人和档案。样本只在名字未注册或这次没读到时补上。
+export function useResolvedName(rawName: string) {
   const preview = usePreview()
-  const identity = useIdentity()
-  const { copy } = useI18n()
-  const [tx, setTx] = useState<TxState>(idleTx)
   const normalized = normalizeHandle(decodeURIComponent(rawName))
+  const shapeOk = isHandleShape(normalized)
+  const fixture = Boolean(preview && isPreviewFixture(normalized))
   const ownerRead = useReadContract({
     address: AGENT_ID,
     abi: agentAbi,
     functionName: "ownerOfHandle",
     args: [normalized],
-    query: { enabled: !preview && normalized.length > 0 },
+    query: { enabled: shapeOk },
   })
+  const owner = ownerRead.data
+  const knownHolder = Boolean(owner && owner !== zeroAddress)
   const validRead = useReadContract({
     address: AGENT_ID,
     abi: agentAbi,
     functionName: "isValidHandle",
     args: [normalized],
-    query: { enabled: !preview && ownerRead.data === zeroAddress },
+    query: { enabled: shapeOk && ownerRead.isSuccess && !knownHolder },
   })
-  const knownPreview = normalized === "ada" || normalized === "bao"
-  const tokenId = normalized ? agentTokenId(normalized) : undefined
+  const tokenId = shapeOk ? agentTokenId(normalized) : undefined
   const profileRead = useReadContract({
     address: NAMEPAY ?? zeroAddress,
     abi: namepayAbi,
     functionName: "profile",
     args: tokenId !== undefined ? [tokenId] : undefined,
-    query: { enabled: !preview && Boolean(NAMEPAY) && knownOrLive(ownerRead.data) },
+    query: { enabled: shapeOk && knownHolder && Boolean(NAMEPAY) },
   })
+
+  // 链上有持有人时，用链上结果。样本只补“还没注册”或“这次没读到”的走查。
+  const chainFailed = ownerRead.isError || (ownerRead.isSuccess && !knownHolder && validRead.isError)
+  let status: NameStatus = "loading"
+  let sample = false
+  if (!shapeOk) status = "invalid"
+  else if (knownHolder) status = "ready"
+  else if (ownerRead.isPending || ownerRead.isLoading) status = "loading"
+  else if (ownerRead.isSuccess && !knownHolder && (validRead.isPending || validRead.isLoading)) status = "loading"
+  else if (chainFailed && fixture) {
+    status = "ready"
+    sample = true
+  } else if (chainFailed) status = "unavailable"
+  else if (validRead.data === false) status = "invalid"
+  else if (fixture) {
+    status = "ready"
+    sample = true
+  } else status = "unknown"
+
+  const profile = knownHolder
+    ? profileRead.data
+      ? toProfile(profileRead.data)
+      : null
+    : sample
+      ? (preview?.profileOf(normalized) ?? null)
+      : null
+  const reload = () => {
+    void ownerRead.refetch()
+    void validRead.refetch()
+    void profileRead.refetch()
+  }
+
+  return {
+    normalized,
+    status,
+    holder: knownHolder ? owner : sample ? preview?.holderOf(normalized) : undefined,
+    profile,
+    profilePending: knownHolder && profileRead.isLoading,
+    profileUnavailable: knownHolder && profileRead.isError,
+    sample,
+    reload,
+  }
+}
+
+export function usePayee(rawName: string) {
+  const resolved = useResolvedName(rawName)
+  const preview = usePreview()
+  const identity = useIdentity()
+  const { copy } = useI18n()
+  const [tx, setTx] = useState<TxState>(idleTx)
+  const { normalized, status, profile } = resolved
+  const tokenId = isHandleShape(normalized) ? agentTokenId(normalized) : undefined
+  const listed = !preview && status === "ready" && Boolean(NAMEPAY)
   const invoiceIds = useReadContract({
     address: NAMEPAY ?? zeroAddress,
     abi: namepayAbi,
     functionName: "recipientInvoiceIds",
     args: tokenId !== undefined ? [tokenId, 0n, 20n] : undefined,
-    query: { enabled: !preview && Boolean(NAMEPAY) && knownOrLive(ownerRead.data) },
+    query: { enabled: listed },
   })
-  const details = useDetails<InvoiceModel>(invoiceIds.data, "invoice", !preview && Boolean(NAMEPAY))
+  const details = useDetails<InvoiceModel>(invoiceIds.data, "invoice", listed)
   const allowance = useReadContract({
     address: USDC,
     abi: erc20Abi,
@@ -496,21 +564,6 @@ export function usePayee(rawName: string) {
   })
   const { writeContractAsync } = useWriteContract()
   const qc = useQueryClient()
-
-  let status: "loading" | "invalid" | "unknown" | "ready" = "loading"
-  if (!normalized) status = "invalid"
-  else if (preview) status = knownPreview ? "ready" : normalized.length < 3 || /[^a-z0-9]/.test(normalized) ? "invalid" : "unknown"
-  else if (ownerRead.isLoading || (ownerRead.data === zeroAddress && validRead.isLoading)) status = "loading"
-  else if (ownerRead.isError) status = "unknown"
-  else if (ownerRead.data && ownerRead.data !== zeroAddress) status = "ready"
-  else if (validRead.data === false) status = "invalid"
-  else status = "unknown"
-
-  const profile = preview
-    ? preview.profileOf(normalized)
-    : profileRead.data
-      ? toProfile(profileRead.data)
-      : null
   const invoices = (
     preview ? preview.state.invoices.filter((item) => item.handle === normalized) : details.items
   ).filter((item) => !item.paid && !item.cancelled)
@@ -523,13 +576,21 @@ export function usePayee(rawName: string) {
     setTx({ phase: "wallet", message: copy.txWallet })
     try {
       const hash = await write()
-      setTx({ phase: "pending", message: copy.txPending, hash })
+      setTx({ phase: "pending", message: copy.txPending, hash, purpose: "payment" })
       await waitForTransactionReceipt(wagmiConfig, { hash })
       await qc.invalidateQueries()
-      setTx({ phase: "success", message: success, hash })
+      setTx({ phase: "success", message: success, hash, purpose: "payment" })
     } catch (error) {
       setTx({ phase: "error", message: explainError(error, copy) })
     }
+  }
+
+  function blockedReason() {
+    if (resolved.profilePending) return copy.loading
+    if (resolved.profileUnavailable) return copy.nameUnread
+    if (tipsAreClosed(profile)) return copy.errors.TipsClosed
+    if (status !== "ready") return status === "unavailable" ? copy.nameUnread : copy.unknownName
+    return ""
   }
 
   const approve = async (amount: bigint) => {
@@ -542,10 +603,10 @@ export function usePayee(rawName: string) {
         functionName: "approve",
         args: [NAMEPAY, amount],
       })
-      setTx({ phase: "pending", message: copy.txPending, hash })
+      setTx({ phase: "pending", message: copy.txPending, hash, purpose: "approval" })
       await waitForTransactionReceipt(wagmiConfig, { hash })
       await qc.invalidateQueries()
-      setTx({ phase: "success", message: copy.thenPay, hash })
+      setTx({ phase: "success", message: copy.thenPay, hash, purpose: "approval" })
     } catch (error) {
       setTx({ phase: "error", message: explainError(error, copy) })
     }
@@ -557,9 +618,25 @@ export function usePayee(rawName: string) {
       setTx({ phase: "error", message: copy.badAmount })
       return
     }
+    const blocked = blockedReason()
+    if (blocked) {
+      setTx({ phase: "error", message: blocked })
+      return
+    }
     if (preview) {
-      const code = preview.apply(previewTip(preview.state, normalized, input))
-      setTx(code ? { phase: "error", message: localMessage(code, copy) } : { phase: "success", message: copy.txSuccess })
+      setTx(
+        previewTx(
+          preview.apply(
+            previewTip(preview.state, normalized, input, {
+              resolved: !resolved.sample,
+              tipsClosed: tipsAreClosed(profile),
+              holder: resolved.sample ? undefined : resolved.holder,
+            }),
+          ),
+          copy,
+          copy.txSuccess,
+        ),
+      )
       return
     }
     await send(copy.txSuccess, () =>
@@ -582,8 +659,7 @@ export function usePayee(rawName: string) {
 
   const buy = async () => {
     if (preview) {
-      const code = preview.apply(previewBuyPass(preview.state, normalized))
-      setTx(code ? { phase: "error", message: localMessage(code, copy) } : { phase: "success", message: copy.txSuccess })
+      setTx(previewTx(preview.apply(previewBuyPass(preview.state, normalized)), copy, copy.txSuccess))
       return
     }
     const price = profile?.passPrice ?? 0n
@@ -600,10 +676,7 @@ export function usePayee(rawName: string) {
   }
 
   return {
-    normalized,
-    status,
-    holder: preview ? preview.holderOf(normalized) : ownerRead.data,
-    profile,
+    ...resolved,
     invoices,
     loading: status === "loading" || (!preview && details.loading),
     identity,
@@ -620,27 +693,93 @@ export function usePayee(rawName: string) {
   }
 }
 
-function knownOrLive(owner: Address | undefined) {
-  return Boolean(owner && owner !== zeroAddress)
-}
+const tipSentEvent = parseAbiItem(
+  "event TipSent(uint256 indexed tipId, uint256 indexed recipientAgentId, uint256 indexed payerAgentId, address payer, address recipient, address token, uint256 amount)",
+)
 
 export function useIncomingTips(handle: string) {
   const preview = usePreview()
+  const qc = useQueryClient()
   const normalized = normalizeHandle(handle)
-  const tokenId = normalized ? agentTokenId(normalized) : undefined
+  const tokenId = isHandleShape(normalized) ? agentTokenId(normalized) : undefined
+  const enabled = !preview && Boolean(NAMEPAY) && tokenId !== undefined
   const ids = useReadContract({
     address: NAMEPAY ?? zeroAddress,
     abi: namepayAbi,
     functionName: "receivedTipIds",
     args: tokenId !== undefined ? [tokenId, 0n, 20n] : undefined,
-    query: {
-      enabled: !preview && Boolean(NAMEPAY) && Boolean(normalized),
-      refetchInterval: 8_000,
+    query: { enabled, refetchInterval: 5_000 },
+  })
+  const details = useDetails<TipModel>(ids.data, "tipInfo", enabled)
+  const logs = useQuery({
+    queryKey: ["namepay-tip-logs", tokenId?.toString() ?? ""],
+    enabled,
+    refetchInterval: 5_000,
+    queryFn: async () => {
+      const empty: Record<string, `0x${string}`> = {}
+      if (!NAMEPAY || tokenId === undefined) return empty
+      const client = getPublicClient(wagmiConfig)
+      if (!client) return empty
+      try {
+        const latest = await client.getBlockNumber()
+        const span = 4_500n
+        const fromBlock = latest > span ? latest - span : 0n
+        const found = await client.getLogs({
+          address: NAMEPAY,
+          event: tipSentEvent,
+          args: { recipientAgentId: tokenId },
+          fromBlock,
+          toBlock: latest,
+        })
+        const map: Record<string, `0x${string}`> = {}
+        for (const log of found) {
+          if (log.args.tipId !== undefined) map[log.args.tipId.toString()] = log.transactionHash
+        }
+        return map
+      } catch {
+        return empty
+      }
     },
   })
-  const details = useDetails<TipModel>(ids.data, "tipInfo", !preview && Boolean(NAMEPAY))
-  const items = preview ? preview.state.tips.filter((item) => item.toHandle === normalized) : details.items
-  return { items, loading: !preview && (ids.isLoading || details.loading) }
+  useWatchContractEvent({
+    address: NAMEPAY ?? undefined,
+    abi: namepayAbi,
+    eventName: "TipSent",
+    args: tokenId !== undefined ? { recipientAgentId: tokenId } : undefined,
+    enabled,
+    onLogs() {
+      void ids.refetch()
+      void logs.refetch()
+      void qc.invalidateQueries()
+    },
+  })
+
+  const chainReady = Boolean(enabled && ids.isSuccess && details.ready && !details.error)
+  const merged = withTipHashes(details.items, logs.data ?? {})
+  const cached = !preview && normalized ? loadInbox(normalized) : []
+  const signature = chainReady ? merged.map((item) => `${item.id.toString()}:${item.txHash ?? ""}`).join(",") : ""
+  const savedSig = useRef<string | null>(null)
+  useEffect(() => {
+    if (!chainReady || !normalized) return
+    const mark = `${normalized}:${signature}`
+    if (savedSig.current === mark) return
+    savedSig.current = mark
+    saveInbox(normalized, merged)
+  }, [chainReady, merged, normalized, signature])
+
+  const items = preview ? preview.state.tips.filter((item) => item.toHandle === normalized) : chainReady ? merged : cached
+  const refreshing = ids.isLoading || ids.isPending || details.loading
+  return {
+    items,
+    loading: !preview && enabled && !chainReady && cached.length === 0 && refreshing,
+    stale: !preview && !chainReady && cached.length > 0 && (ids.isError || Boolean(details.error)),
+    failed: !preview && enabled && !chainReady && cached.length === 0 && (ids.isError || Boolean(details.error)),
+    refetch: () => {
+      void ids.refetch()
+      void logs.refetch()
+      void details.refetch()
+    },
+  }
 }
 
 export function useRegistryLabel() {

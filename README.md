@@ -1,17 +1,30 @@
 # Namepay
 
-付给一个 Agent ID，而不是一个可能过时的地址。
+付给一个 Agent ID 的**当前链上持有人**，不是付给一个币安账户，也不是付给一个可能过时的地址。
 
-公开预览（曼谷现场结账）：<https://namepay-bangkok-0b6ceb.surge.sh/preview/booth>
+主网合约已经部署在 BNB Smart Chain（chain id 56）：`0xE762448Cd6a9887e00c380de3dC6DaAE06aB2FeD`。现场结账只调用这份合约上已有的 `tip`（BNB）和 `tipToken`（USDC）。资金在同一笔交易里转给 `ownerOf` 读到的当前持有人。合约不托管。不要再部署一份，也不要在仓库里放私钥。
 
-| 路径 | 作用 |
-| --- | --- |
-| `/booth` | 收款台：填 Agent ID、金额、BNB 或 USDC，出示结账二维码，看入账 |
-| `/checkout/<name>.ai` | 付款人扫码后的结账页。付完看到收据（金额、资产、收款 Agent ID、交易链接） |
-| `/preview/booth` | 同一套界面，不签名、不广播 |
-| `/preview/checkout/<name>.ai` | 预览里的付款和收据 |
+公开预览（不签名）：<https://namepay-bangkok-0b6ceb.surge.sh/preview/booth>
 
-主网合约已经部署在 BNB Smart Chain（chain id 56）：`0xE762448Cd6a9887e00c380de3dC6DaAE06aB2FeD`。现场结账调用现有的 `tip` / `tipToken`，BNB 或 USDC 直接进这个 Agent ID 的当前持有人。合约不托管。不要再部署一份。
+| 路径 | 谁用 | 会不会上链 |
+| --- | --- | --- |
+| `/booth` | 展台屏幕 | 会。付款人自己的钱包签名并广播 |
+| `/checkout/<name>.ai` | 扫码的付款人 | 同上。收据上是真实交易哈希 |
+| `/preview/booth` | 不连钱包的走查 | 不会签名、不会广播 |
+| `/preview/checkout/<name>.ai` | 走查里的付款页 | 收据上的哈希是模拟的，并标明未广播 |
+
+`ada.ai` 和 `bao.ai` 是预览里的账单样本。`tipoff.ai` 没有注册，用来看“打赏已关闭”时页面怎么说。已经注册的名字（包括链上的 bao.ai）会读当前持有人；样本持有人只在链上没有这个名字、或当时读不到链时出现。真正转账只发生在 `/booth` 和 `/checkout`。
+
+## 曼谷展台
+
+1. 收款电脑打开 `/booth`。填一个已注册、且没有关闭打赏的 Agent ID，选金额和 BNB 或 USDC，把二维码投出来。二维码、金额和名字记在这个浏览器里，刷新还在。
+2. 付款人用另一部手机扫码。这个钱包必须已经持有**另一个** Agent ID（在币安 App 里领取），并留一点 BNB 作 gas。不能给自己的名字付款。没有 Agent ID 的钱包会被合约拒绝。
+3. 连接方式只有两种：浏览器里的注入钱包，或 WalletConnect。页面不会要 Agentic Wallet 配对码、助记词或私钥。
+4. 付款页会写出当前持有人地址，并写明这不是币安账户。钱包里确认的是现有合约的 `tip` 或 `tipToken`。
+5. 选 USDC 时要确认两次：先按这笔金额授权，再支付。授权成功还不是收据。收据只在支付交易确认后出现，上面有交易哈希。
+6. 展台的入账来自合约里的打赏记录，所以换一台手机付款、再刷新展台，列表还在。最近大约 4500 个区块里能对上的交易，会带上哈希。
+
+如果这个名字的应付档案把打赏关掉了，展台和结账页会直接说明付不了，不会打开一个注定失败的钱包确认。没开过档案的名字仍然可以收款。
 
 Namepay 是自托管支付工具：Agent ID 持有人可以开通应付档案、开账单、收款；另一位持有人可以付款或打赏。资金在同一笔交易里转给这个名字的**当前持有人**，合约不保管用户资金。支付指定账单或购买通行证时，会记下一张**不能转让、绑定在付款人 Agent ID 上**的访问通行证。
 
@@ -36,9 +49,20 @@ npm run dev
 
 ## Public preview
 
-Booth checkout: <https://namepay-bangkok-0b6ceb.surge.sh/preview/booth>
+Walkthrough, no wallet: <https://namepay-bangkok-0b6ceb.surge.sh/preview/booth>
 
-Live paths on that host are `/booth` and `/checkout/<name>.ai`. Preview paths under `/preview` use the same screens and do not sign or broadcast. The live contract is `0xE762448Cd6a9887e00c380de3dC6DaAE06aB2FeD` on BNB Smart Chain (chain id 56). Checkout pays with the existing `tip` and `tipToken` functions, so BNB or USDC goes to the wallet that currently holds the Agent ID. Do not deploy another contract.
+Live paths on that host are `/booth` and `/checkout/<name>.ai`. Preview paths under `/preview` use the same screens and do not sign or broadcast. The live contract is `0xE762448Cd6a9887e00c380de3dC6DaAE06aB2FeD` on BNB Smart Chain (chain id 56). Checkout pays with the existing `tip` and `tipToken` functions, so BNB or USDC goes to the wallet that currently holds the Agent ID. That wallet is the on-chain holder, not a Binance account. Do not deploy another contract.
+
+## Booth demo
+
+1. On the booth laptop, open `/booth`. Enter a registered Agent ID that still accepts tips, pick BNB or USDC, and show the QR. The form is kept in this browser, so a refresh restores it.
+2. The payer scans with a different phone. That wallet must already hold a different Agent ID and a little BNB for gas. The contract rejects a wallet with no Agent ID, and it rejects paying your own name.
+3. Connect an injected wallet or WalletConnect. The page does not ask for an Agentic Wallet pairing code, a seed phrase, or a private key.
+4. The checkout page shows the current holder and says this is not a Binance account. The wallet confirms `tip` (BNB, with value) or `tipToken` (USDC).
+5. USDC is two confirmations: approve the exact amount, then pay. The approval is not the receipt. The receipt appears after the payment transaction, with its hash.
+6. The booth reads tips from the contract, so the incoming list survives a refresh and does not depend on the payer’s phone. A recent log lookup adds the transaction hash when the public RPC allows it. If a read fails, the last list saved in that browser stays on screen.
+
+If the payable profile has tips closed, the booth and the checkout explain that and do not open a wallet confirmation that would revert. A name with no profile can still be paid. In the preview, `tipoff.ai` is an unregistered sample with tips closed. `ada.ai` and `bao.ai` keep the scripted invoices. When a name is registered, preview and live both show that chain holder; the sample holder is only used when the name is not registered or the registry could not be read. Only live checkout broadcasts.
 
 ## What it is
 
@@ -104,7 +128,7 @@ Product choices, also enforced in tests:
 
 ## Red lines
 
-- No Agentic Wallet QR login, no pairing-code field, no seed phrase, no private key, no API secret. WalletConnect is the standard connector and is off until `VITE_WALLETCONNECT_PROJECT_ID` is set. Inside the Binance Wallet browser, use the injected wallet.
+- No Agentic Wallet QR login, no pairing-code field, no seed phrase, no private key, no API secret. Wallet connection is an injected wallet or WalletConnect. A public WalletConnect project id is built in so a static booth build can open the dialog without a secret in the repo; it cannot move funds. Set `VITE_WALLETCONNECT_PROJECT_ID` to use a different id. Inside the Binance Wallet browser, use the injected wallet.
 - Every transfer is a wallet transaction the user confirms. There is no scheduled pull and no bundled extra transfer.
 - The contract does not take custody. There is no pot to sweep.
 - The product name is Namepay. It does not use “Binance” or “BNB” as a brand. “Agent ID” appears only as a description. “BNB” appears only as the native asset on chain id 56.
@@ -163,18 +187,20 @@ Open http://127.0.0.1:41731 .
 | `VITE_NAMEPAY_ADDRESS` | Live Namepay on chain id 56: `0xE762448Cd6a9887e00c380de3dC6DaAE06aB2FeD`. The frontend uses this if the variable is empty. |
 | `VITE_AGENT_ID_ADDRESS` | Defaults to the live registry. |
 | `VITE_USDC_ADDRESS` | Defaults to Binance-Peg USDC. |
-| `VITE_WALLETCONNECT_PROJECT_ID` | Free project id from https://cloud.walletconnect.com . Leave empty to show only the injected wallet. Do not commit a real id if you consider it private; the example file is blank. |
+| `VITE_WALLETCONNECT_PROJECT_ID` | Optional. A public project id is already built in so WalletConnect works on a static deploy. Set this to replace it. The example file is blank. Do not commit a private key or an API secret. |
 
 `npm run build` writes a static site to `web/dist`. Serve that directory on any static host. Do not add a backend.
 
-Preview routes, all unsigned:
+Preview routes, all unsigned. Payments stay in this browser (`localStorage`), including after a refresh, and a second tab on the same origin sees them. `ada.ai`, `bao.ai`, and `tipoff.ai` still walk offline if the registry cannot be read. Registered names resolve with a read-only call; the receipt hash is simulated and is not a BscScan transaction.
 
 - `/preview` walkthrough index
+- `/preview/booth` booth QR, simulated checkout, incoming list
 - `/preview/desk` ada.ai’s desk
 - `/preview/empty` a wallet with no Agent ID
 - `/preview/pay/1` bao.ai’s open invoice
 - `/preview/to/bao.ai` tip and pass
 - `/preview/to/missing.ai` unknown name
+- `/preview/checkout/tipoff.ai?amount=0.05&token=bnb&memo=closed` tips closed
 
 The preview banner can mark the next action as a wallet rejection so that state is visible.
 
@@ -276,7 +302,7 @@ Run it from the repo root so `foundry.toml` supplies optimizer enabled, `via_ir 
 
 The live address above is already verified on Sourcify. The frontend uses it when `VITE_NAMEPAY_ADDRESS` is unset.
 
-Venue checkout for a booth is `/booth` (preview: `/preview/booth`). It shows a QR for `/checkout/<name>.ai`. Paying calls the existing `tip` or `tipToken` function, so BNB or USDC goes to the wallet that currently holds that Agent ID. The payer then sees a receipt. The booth lists incoming tips. `/preview/booth` runs the same screens without signing.
+Venue checkout is `/booth` (preview: `/preview/booth`). It shows a QR for `/checkout/<name>.ai`. Paying calls the existing `tip` or `tipToken` function, so BNB or USDC goes to the wallet that currently holds that Agent ID. The payer’s receipt shows the transaction hash. The booth lists those tips from the contract, so a refresh does not clear them. `/preview/booth` runs the same screens without signing. See “Booth demo” above.
 
 Only this Namepay address should be submitted. Interacting addresses are the `msg.sender` of those transactions, and every core action requires that address to hold an Agent ID. BNB value is `msg.value`. USDC moves inside the same transaction from the payer to the current holder.
 

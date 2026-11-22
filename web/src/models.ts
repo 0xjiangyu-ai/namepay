@@ -4,6 +4,8 @@ export type TxState = {
   phase: "idle" | "wallet" | "pending" | "success" | "error"
   message: string
   hash?: `0x${string}`
+  /// approval 只是 USDC 授权。收据只在 payment 确认后出现。
+  purpose?: "payment" | "approval"
 }
 
 export const idleTx: TxState = { phase: "idle", message: "" }
@@ -58,6 +60,8 @@ export type TipModel = {
   fromHandle: string
   toHandle: string
   memo: string
+  /// 预览收据，或展台从近期日志里对上的交易。合约存储本身不记哈希。
+  txHash?: `0x${string}`
 }
 
 export type PassModel = {
