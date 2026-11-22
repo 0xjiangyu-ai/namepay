@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
 import { zeroAddress } from "viem"
 import { EXPLORER } from "../config.ts"
-import { ConnectButton, SwitchNetwork } from "../components/Connect.tsx"
+import { BinancePayConnect, SwitchNetwork } from "../components/Connect.tsx"
 import { Button, CopyButton, TxBanner } from "../components/ui.tsx"
 import { useI18n } from "../i18n.tsx"
 import { checkoutToken, readCheckoutQuery } from "../lib/checkout.ts"
@@ -138,11 +138,11 @@ export function Checkout() {
               </div>
             </div>
           ) : null}
-          {payee.identity.status === "disconnected" ? (
-            <div className="mt-4 space-y-3">
-              <p className="text-sm">{copy.checkoutPayerRule}</p>
-              <ConnectButton />
-            </div>
+          {payee.identity.status === "loading" && payee.identity.address ? (
+            <p className="mt-4 text-sm text-muted">{copy.loadingIdentity}</p>
+          ) : null}
+          {payee.live && !payee.identity.address && (payee.identity.status === "disconnected" || payee.identity.status === "loading") ? (
+            <BinancePayConnect />
           ) : null}
           {payee.identity.status === "no-agent" ? <p className="mt-4 text-sm">{copy.noAgentBody}</p> : null}
           {payee.identity.status === "wrong-network" ? (
