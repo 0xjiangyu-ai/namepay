@@ -155,7 +155,10 @@ export function Booth() {
           </p>
         ) : null}
         {qr ? (
-          <img src={qr} alt={copy.showQr} className="mx-auto mt-4 w-full max-w-sm rounded-2xl bg-white p-3" />
+          <>
+            <img src={qr} alt={copy.showQr} className="mx-auto mt-4 w-full max-w-sm rounded-2xl bg-white p-3" />
+            <p className="mt-3 text-sm text-muted">{copy.boothScanHint}</p>
+          </>
         ) : recipient.status === "ready" && !closed && !recipient.profilePending ? (
           <p className="mt-6 text-sm text-muted">{copy.checkoutIncomplete}</p>
         ) : null}

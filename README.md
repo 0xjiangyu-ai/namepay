@@ -18,8 +18,8 @@
 ## 曼谷展台
 
 1. 收款电脑打开 `/booth`。填一个已注册、且没有关闭打赏的 Agent ID，选金额和 BNB 或 USDC，把二维码投出来。二维码、金额和名字记在这个浏览器里，刷新还在。
-2. 付款人用另一部手机扫码。这个钱包必须已经持有**另一个** Agent ID（在币安 App 里领取），并留一点 BNB 作 gas。不能给自己的名字付款。没有 Agent ID 的钱包会被合约拒绝。
-3. 连接方式只有两种：浏览器里的注入钱包，或 WalletConnect。页面不会要 Agentic Wallet 配对码、助记词或私钥。
+2. 付款人用手机相机扫这张收款二维码，不要用币安 App 里的扫一扫，那个扫描器会说「无效的二维码」。打开的是结账网页。付款钱包必须已经持有**另一个** Agent ID，并留一点 BNB 作 gas。不能给自己的名字付款。没有 Agent ID 时，页面会说明付不了。
+3. 在结账页点「在币安 App 中确认」。手机会打开币安主 App 里的钱包，不需要另装钱包 App，也不要配对码。电脑上则显示我们自己生成的 WalletConnect 连接码，可以复制。
 4. 付款页会写出当前持有人地址，并写明这不是币安账户。钱包里确认的是现有合约的 `tip` 或 `tipToken`。
 5. 选 USDC 时要确认两次：先按这笔金额授权，再支付。授权成功还不是收据。收据只在支付交易确认后出现，上面有交易哈希。
 6. 展台的入账来自合约里的打赏记录，所以换一台手机付款、再刷新展台，列表还在。最近大约 4500 个区块里能对上的交易，会带上哈希。
@@ -56,8 +56,8 @@ Live paths on that host are `/booth` and `/checkout/<name>.ai`. Preview paths un
 ## Booth demo
 
 1. On the booth laptop, open `/booth`. Enter a registered Agent ID that still accepts tips, pick BNB or USDC, and show the QR. The form is kept in this browser, so a refresh restores it.
-2. The payer scans with a different phone. That wallet must already hold a different Agent ID and a little BNB for gas. The contract rejects a wallet with no Agent ID, and it rejects paying your own name.
-3. Connect an injected wallet or WalletConnect. The page does not ask for an Agentic Wallet pairing code, a seed phrase, or a private key.
+2. The payer scans the checkout QR with the phone camera. The Binance App scanner rejects that QR. The wallet must already hold a different Agent ID and a little BNB for gas. A wallet with no Agent ID is told it cannot pay, and you cannot pay your own name.
+3. On the checkout page, tap “Confirm in the Binance App”. That opens the wallet inside the main Binance App. There is no separate wallet app and no pairing code. On a computer, Namepay draws its own WalletConnect code, which can be copied.
 4. The checkout page shows the current holder and says this is not a Binance account. The wallet confirms `tip` (BNB, with value) or `tipToken` (USDC).
 5. USDC is two confirmations: approve the exact amount, then pay. The approval is not the receipt. The receipt appears after the payment transaction, with its hash.
 6. The booth reads tips from the contract, so the incoming list survives a refresh and does not depend on the payer’s phone. A recent log lookup adds the transaction hash when the public RPC allows it. If a read fails, the last list saved in that browser stays on screen.
@@ -128,7 +128,7 @@ Product choices, also enforced in tests:
 
 ## Red lines
 
-- No Agentic Wallet QR login, no pairing-code field, no seed phrase, no private key, no API secret. Wallet connection is an injected wallet or WalletConnect. A public WalletConnect project id is built in so a static booth build can open the dialog without a secret in the repo; it cannot move funds. Set `VITE_WALLETCONNECT_PROJECT_ID` to use a different id. Inside the Binance Wallet browser, use the injected wallet.
+- No Agentic Wallet QR login, no pairing-code field, no seed phrase, no private key, no API secret. A phone opens the main Binance App through WalletConnect. A computer shows a connection code drawn by this site. A public WalletConnect project id is built in so that works without a secret in the repo; it cannot move funds. Set `VITE_WALLETCONNECT_PROJECT_ID` to use a different id. Inside the Binance App browser, the injected wallet is used.
 - Every transfer is a wallet transaction the user confirms. There is no scheduled pull and no bundled extra transfer.
 - The contract does not take custody. There is no pot to sweep.
 - The product name is Namepay. It does not use “Binance” or “BNB” as a brand. “Agent ID” appears only as a description. “BNB” appears only as the native asset on chain id 56.

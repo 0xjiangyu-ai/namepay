@@ -3,6 +3,7 @@ import { bsc } from "wagmi/chains"
 import { injected, walletConnect } from "wagmi/connectors"
 import { defineChain, fallback, http as viemHttp } from "viem"
 import { CHAIN_ID, readRpcUrls, RPC_URL, WALLETCONNECT_PROJECT_ID } from "./config.ts"
+import { createWalletConnectStorage } from "./lib/wcStorage.ts"
 
 const bscReadUrls = readRpcUrls()
 
@@ -25,14 +26,32 @@ const bscReadTransport = fallback(
   { rank: false },
 )
 
-const connectors: CreateConnectorFn[] = [injected({ shimDisconnect: true })]
+const connectors: CreateConnectorFn[] = [
+  injected({
+    target: {
+      id: "binanceApp",
+      name: "Binance",
+      provider: (target) => {
+        const view = target as Window & {
+          ethereum?: { isBinance?: boolean }
+          binancew3w?: { ethereum?: unknown }
+        }
+        const found = view.binancew3w?.ethereum ?? (view.ethereum?.isBinance ? view.ethereum : undefined)
+        return found as never
+      },
+    },
+  }),
+  injected({ shimDisconnect: true }),
+]
 
 if (WALLETCONNECT_PROJECT_ID) {
   const origin = typeof window === "undefined" ? "http://localhost" : window.location.origin
   connectors.push(
     walletConnect({
       projectId: WALLETCONNECT_PROJECT_ID,
-      showQrModal: true,
+      // 官方弹窗在 IndexedDB 出错时是一块黑的，复制也是空的。连接码由我们自己画。
+      showQrModal: false,
+      storage: createWalletConnectStorage(),
       metadata: {
         name: "Namepay",
         description: "Pay an Agent ID",
